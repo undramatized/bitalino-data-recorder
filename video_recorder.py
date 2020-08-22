@@ -20,7 +20,8 @@ framerate = 20.0
 
 # Define the codec and create VideoWriter object
 fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-out = cv2.VideoWriter(OUTPUT_PATH.format(filename=filename), fourcc, framerate, (640,  480))
+# out = cv2.VideoWriter(OUTPUT_PATH.format(filename=filename), fourcc, framerate, (640,  480))
+out = cv2.VideoWriter(OUTPUT_PATH.format(filename=filename), fourcc, framerate, (width,  height))
 
 if not cap.isOpened():
     print("Cannot open camera")
