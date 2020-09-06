@@ -11,8 +11,9 @@ class VideoPlayer:
     OUTPUT_PATH = "../video_recordings/{filename}.mp4"
     FRAMERATE = 23.98
 
-    def __init__(self, source):
+    def __init__(self, source, filename):
         self.source = source
+        self.filename = filename
         self.vidret = self.vidframe = self.status = self.frame = None
         self.vidframes = deque()
 
@@ -71,7 +72,7 @@ class VideoPlayer:
                     self.out.write(output)
                     # self.out.write(self.frame)
             except:
-                print("no active frame")
+                continue
             time.sleep(.01)
 
     def create_video_writer(self, framerate):
