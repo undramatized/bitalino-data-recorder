@@ -19,6 +19,7 @@ class BitalinoReader:
         self.set_battery_threshold(30)
         self.recording = False
         self.data = []
+        self.start_time = 0
 
     def connect(self):
         device = BITalino(self.MAC_ADDRESS)
@@ -31,7 +32,7 @@ class BitalinoReader:
         self.device.battery(threshold)
 
     def get_columnnames(self):
-        default_cols = ["seq_num", "digital_0", "digital_1", "digital_2", "digital_3"]
+        default_cols = ["timestamp", "seq_num", "digital_0", "digital_1", "digital_2", "digital_3"]
         channel_names = ["emg", "ecg", "eda", "eeg", "acc", "lux"]
 
         for channel in self.channels:
@@ -43,15 +44,20 @@ class BitalinoReader:
         print("Starting Bitalino recording")
         self.device.start(self.sampling_rate, self.channels)
         self.recording = True
+        self.start_time = time.time()
         while self.recording:
-            samples = self.device.read(self.n_samples)
-            self.data = self.data + samples.tolist()
+            (samples, curr_time) = self.get_data()
+            time_array = np.full((self.n_samples, 1), curr_time)
+            combined = np.append(time_array, samples, axis=1)
+            self.data = self.data + combined.tolist()
             if not self.recording:
                 break
 
     def get_data(self):
         samples = self.device.read(self.n_samples)
-        return samples
+        curr_time = time.time() - self.start_time
+        print(curr_time, samples)
+        return (samples, curr_time)
 
     def stop_record(self):
         print("Stopping Bitalino record")
