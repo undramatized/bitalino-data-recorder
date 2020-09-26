@@ -20,6 +20,7 @@ class BitalinoReader:
         self.recording = False
         self.data = []
         self.start_time = 0
+        self.data_thread = None
 
     def connect(self):
         device = BITalino(self.MAC_ADDRESS)
@@ -78,10 +79,12 @@ class BitalinoReader:
     def close_connection(self):
         self.device.close()
         print("Closed connection")
+        self.data_thread.join()
+        print("Bitalino thread killed")
 
     def run(self):
-        bitalino_thread = threading.Thread(target=self.start_record)
-        bitalino_thread.start()
+        self.data_thread = threading.Thread(target=self.start_record)
+        self.data_thread.start()
 
 
 
