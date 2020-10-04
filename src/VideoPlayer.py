@@ -84,8 +84,8 @@ class VideoPlayer:
         width = int(self.reccap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(self.reccap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        curr_date = datetime.now().strftime("%Y_%m_%H_%M")
-        filename = f"vidcapture_{curr_date}"
+
+        filename = f"{self.filename}"
         return cv2.VideoWriter(self.OUTPUT_PATH.format(filename=filename), fourcc, framerate, (width, height))
 
     def create_output_frame(self, frame1, frame2):
@@ -185,7 +185,10 @@ class VideoPlayer:
 
 
 if __name__ == '__main__':
-    path = "../video_source/sample_video.mp4"
-    player = VideoPlayer(path)
+    subject_name = "rama"
+    curr_datetime = datetime.now().strftime("%Y_%m_%H_%M")
+    filename = subject_name + '_' + curr_datetime
+    path = "../video_source/batman_returns_2.mp4"
+    player = VideoPlayer(path, filename)
     player.start()
 

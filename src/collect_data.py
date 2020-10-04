@@ -3,11 +3,11 @@ from src.VideoPlayer import VideoPlayer
 from datetime import datetime
 
 if __name__ == '__main__':
-    subject_name = "rama"
+    subject_name = "ganesh"
     curr_datetime = datetime.now().strftime("%Y_%m_%H_%M")
     filename = subject_name + '_' + curr_datetime
 
-    video_path = "../video_source/sample_video.mp4"
+    video_path = "../video_source/batman_returns.mp4"
 
     bitalino_thread = BitalinoReader(filename, channels=[1,2,4])
     video_thread = VideoPlayer(video_path, filename)
