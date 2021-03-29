@@ -4,26 +4,59 @@ import threading
 from datetime import datetime
 import time
 from collections import deque
+from ffpyplayer.player import MediaPlayer
+import math
 
 
 class VideoPlayer:
 
     OUTPUT_PATH = "../video_recordings/{filename}.mp4"
-    FRAMERATE = 23.98
 
     def __init__(self, source, filename):
         self.source = source
         self.filename = filename
-        self.vidret = self.vidframe = self.status = self.frame = None
+        self.vidret \
+            = self.vidframe \
+            = self.audioframe \
+            = self.audioval \
+            = self.status \
+            = self.recframe \
+            = None
+
+        self.playframes = deque()
         self.vidframes = deque()
+        self.recframes = deque()
+        self.audioframes = deque()
 
         self.playcap = cv2.VideoCapture(self.source)
+
+        self.framerate = self.playcap.get(cv2.CAP_PROP_FPS)
+        self.framerate_int = int(math.ceil(self.framerate))
+        print("video framerate:", self.framerate_int)
+
         self.playing = False
         self.writing = False
 
         self.reccap = cv2.VideoCapture(0)
 
-        self.out = self.create_video_writer(self.FRAMERATE)
+        self.rec_framerate = math.ceil(self.reccap.get(cv2.CAP_PROP_FPS))
+        print("recording framerate:", self.rec_framerate)
+
+        self.out = self.create_video_writer(self.framerate)
+        self.load_video()
+
+        print("vid frames", len(self.vidframes))
+        print("audio frames", len(self.audioframes))
+
+    def get_rescale_percent(self, size='med'):
+        medsize = 360
+        smlsize = 120
+        height = int(self.playcap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        if size == 'med':
+            return (height/medsize)*100
+        else:
+            # small size
+            return (height/smlsize)*100
 
     def rescale_frame(self, frame, percent=75):
         '''
@@ -53,8 +86,9 @@ class VideoPlayer:
         # Read the next frame from the stream in a different thread
         while True:
             if self.reccap.isOpened():
-                (self.status, self.frame) = self.reccap.read()
-            time.sleep(.01)
+                (self.status, self.recframe) = self.reccap.read()
+                self.recframes.append(self.recframe)
+            time.sleep(1/30)
 
     def write_output(self):
         '''
@@ -63,26 +97,28 @@ class VideoPlayer:
         :return: None
         '''
         # Read the next frame from the stream in a different thread
+        rescaleval = self.get_rescale_percent('sml')
         while True:
             try:
                 if self.is_playing():
                     frame = self.vidframes.popleft()
-                    src_frame_small = self.rescale_frame(frame, percent=10)
-                    output = self.create_output_frame(src_frame_small, self.frame)
+                    src_frame_small = self.rescale_frame(frame, percent=15)
+                    output = self.create_output_frame(src_frame_small, self.recframe)
                     self.out.write(output)
                     # self.out.write(self.frame)
             except:
                 continue
-            time.sleep(.01)
+            time.sleep(1/self.rec_framerate)
 
     def create_video_writer(self, framerate):
         '''
-        Creates VideoWriter class, defining codec, framerate, width/height and output filename
+        Creates VideoWriter class for Webcam feed, defining codec, framerate, width/height and output filename
         :param framerate:
         :return: VideoWriter class object
         '''
         width = int(self.reccap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(self.reccap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        print("webcam video dim:", width, height)
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 
         filename = f"{self.filename}"
@@ -99,6 +135,58 @@ class VideoPlayer:
         x_offset = y_offset = 50
         frame2[y_offset:y_offset + h, x_offset:x_offset + w] = frame1
         return frame2
+
+    def load_video(self):
+        # Check if camera opened successfully
+        if not self.playcap.isOpened():
+            print("Error opening video file")
+            exit()
+
+        # Start the read thread for webcam
+        print("loading video")
+        rescale_val = self.get_rescale_percent()
+
+        # continue while video is playing
+        while self.playcap.isOpened():
+
+            # Play video frame-by-frame
+            vidret, vidframe = self.playcap.read()
+            # audioframe, audioval = self.audiocap.get_frame()
+            if vidret:
+                self.vidframes.append(vidframe)
+                self.playframes.append(vidframe)
+                # self.audioframes.append(audioframe)
+
+            # Break the loop
+            else:
+                break
+
+        print("video loaded")
+
+    def play_video(self):
+        print("playing video")
+        self.read_thread()
+        self.playing = True
+        self.audiocap = MediaPlayer(self.source)
+
+        rescale_val = self.get_rescale_percent()
+
+        for i in range(len(self.playframes)):
+            self.vidframe = self.playframes.popleft()
+            src_frame_medium = self.rescale_frame(self.vidframe, rescale_val)
+            cv2.imshow('video_src', src_frame_medium)
+            if not self.writing:
+                self.write_thread()
+                self.writing = True
+
+            # Press Q on keyboard to  exit
+            if cv2.waitKey(40) & 0xFF == ord('q'):
+                break
+
+        print("end of video")
+        self.stop()
+
+
 
     def start(self):
         '''
@@ -119,11 +207,14 @@ class VideoPlayer:
         self.read_thread()
         self.playing = True
 
+        rescale_val = self.get_rescale_percent()
+
         # continue while video is playing
         while self.playcap.isOpened():
 
             # Play video frame-by-frame
             self.vidret, self.vidframe = self.playcap.read()
+            self.audioframe, self.audioval = self.audiocap.get_frame()
             if self.vidret:
                 self.vidframes.append(self.vidframe)
                 if not self.writing:
@@ -131,8 +222,12 @@ class VideoPlayer:
                     self.writing = True
 
                 # Display the resulting frame
-                src_frame_medium = self.rescale_frame(self.vidframe, percent=20)
+                src_frame_medium = self.rescale_frame(self.vidframe, rescale_val)
                 cv2.imshow('video_src', src_frame_medium)
+
+                # Process and play audio
+                if self.audioval != 'eof' and self.audioframe is not None:
+                    img, t = self.audioframe
 
                 # Press Q on keyboard to  exit
                 if cv2.waitKey(25) & 0xFF == ord('q'):
@@ -143,6 +238,9 @@ class VideoPlayer:
                 break
 
         self.stop()
+
+
+
 
     def stop(self):
         '''
@@ -176,7 +274,7 @@ class VideoPlayer:
 
     def write_thread(self):
         '''
-        Thread for writing into the output file
+        Thread for writing compiled video into the output file
         :return:
         '''
         writer_thread = threading.Thread(target=self.write_output)
@@ -185,10 +283,10 @@ class VideoPlayer:
 
 
 if __name__ == '__main__':
-    subject_name = "rama"
+    subject_name = "washeem_maths"
     curr_datetime = datetime.now().strftime("%Y_%m_%H_%M")
     filename = subject_name + '_' + curr_datetime
-    path = "../video_source/batman_returns_2.mp4"
+    path = "../video_source/asuran_video.mp4"
     player = VideoPlayer(path, filename)
-    player.start()
+    player.play_video()
 
