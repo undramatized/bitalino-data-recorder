@@ -1,5 +1,5 @@
 bitalino==1.2.1
-numpy==1.19.0
+numpy==1.22.0
 opencv-python==4.2.0.34
 pandas==1.0.5
 pyserial==3.4
